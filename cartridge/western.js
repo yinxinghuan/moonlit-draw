@@ -2,6 +2,8 @@ export const westernCartridge = {
   id: 'western',
   title: 'Quick Draw',
   subtitle: 'fastest hand in the feed',
+  posterUrl: 'https://yinxinghuan.github.io/games/posters/quick-draw.png',
+  bestKey: 'quick-draw.best',
   themeClass: 'theme-western',
   copy: {
     guide: 'Tap the instant it says DRAW',

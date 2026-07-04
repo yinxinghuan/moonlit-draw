@@ -2,6 +2,8 @@ export const moonlitDojoCartridge = {
   id: 'moonlit-dojo',
   title: 'Moonlit Draw',
   subtitle: 'stillness before the strike',
+  posterUrl: 'https://yinxinghuan.github.io/games/posters/moonlit-draw.png',
+  bestKey: 'moonlit-draw.best',
   themeClass: 'theme-moonlit-dojo',
   copy: {
     guide: 'Tap the instant the moon flashes',

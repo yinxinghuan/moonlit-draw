@@ -140,29 +140,29 @@
 <body>
 <div id="wrap">
   <canvas id="c"></canvas>
-  <div id="wordmark" class="hud"><span class="b">Quick Draw</span><span class="sub">fastest hand in the feed</span></div>
+  <div id="wordmark" class="hud"><span class="b">Moonlit Draw</span><span class="sub">stillness before the strike</span></div>
   <div id="wins" class="hud"><svg class="star" viewBox="0 0 24 24"><path d="M12 2 L15 9 L22 9.3 L16.5 14 L18.5 21 L12 17 L5.5 21 L7.5 14 L2 9.3 L9 9 Z"/></svg><span id="winsN">0</span></div>
   <div id="opp" class="hud">VS<b id="oppN">—</b></div>
-  <div id="draw" class="hud">DRAW!</div>
+  <div id="draw" class="hud">STRIKE!</div>
   <div id="status" class="hud"></div>
   <div id="guide" class="hud">
     <div class="g-finger"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11.24V7.5C9 6.12 10.12 5 11.5 5S14 6.12 14 7.5v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zm9.84 4.63l-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6c0-.83-.67-1.5-1.5-1.5S10 6.67 10 7.5v10.74l-3.43-.72c-.08-.01-.15-.03-.24-.03-.31 0-.59.13-.79.33l-.79.8 4.94 4.94c.27.27.65.44 1.06.44h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27c.01-.07.02-.14.02-.2 0-.62-.38-1.16-.92-1.38z"/></svg></div>
-    <div class="g-label">Tap the instant it says DRAW</div>
+    <div class="g-label">Tap the instant the moon flashes</div>
   </div>
   <div id="lb"></div>
 </div>
 
-<div id="lbFull"><div class="lcard"><h2>Most Wanted</h2><p class="lsub">Most duels won</p><div id="lblist"></div><button id="lbClose">Close</button></div></div>
+<div id="lbFull"><div class="lcard"><h2>Moon Ladder</h2><p class="lsub">Most clean strikes</p><div id="lblist"></div><button id="lbClose">Close</button></div></div>
 
 <div id="over"><div class="card">
-  <p class="tag">Six feet under</p>
-  <h1>You got out-drawn</h1>
-  <p class="killer">by <b id="finalKiller">The Drifter</b></p>
+  <p class="tag">Lesson over</p>
+  <h1>You missed the opening</h1>
+  <p class="killer">against <b id="finalKiller">The Silent Blade</b></p>
   <div class="rows">
     <div class="stat"><span class="k">Duels won</span><span class="v" id="finalWins">0</span></div>
-    <div class="stat best"><span class="k">Best draw</span><span class="v" id="finalBest">—</span></div>
+    <div class="stat best"><span class="k">Best strike</span><span class="v" id="finalBest">—</span></div>
   </div>
-  <div class="btns"><button class="btn-cta" id="again">Draw again</button><button class="btn-ghost" id="overRank">View ranking</button></div>
+  <div class="btns"><button class="btn-cta" id="again">Strike again</button><button class="btn-ghost" id="overRank">View ranking</button></div>
 </div></div>
 
 <script type="module">
@@ -291,7 +291,7 @@ $('#lbClose').addEventListener('click', ()=>lbFullEl.classList.remove('show'));
 function renderLB(rows, meId){ if(!rows.length){ lbEl.classList.remove('show'); return; } rows=rows.slice().sort((a,b)=>(a.rank||999)-(b.rank||999)); lbData={rows,meId}; lbEl.innerHTML=''; lbEl.appendChild(lbChampionPill(rows[0], String(rows[0].user_id)===meId)); lbEl.classList.add('show'); }
 window.__lbRender = renderLB;
 async function refreshLB(){ const A=window.Aigram; if(!A||!A.canRank){ if(lbFullEl.classList.contains('show')) renderLBDownload(); return; } try { const res=await A.callAigramAPI('/note/aigram/ai/game/rank/score/list/by/session_id?session_id='+A.gameUuid,'GET'); const rows=Array.isArray(res)?res:(res&&res.data)||[]; renderLB(rows, String(A.telegramId)); } catch(e){} }
-async function trySendBeatNotify(myScore){ const A=window.Aigram; if(!A||!A.canRank||!A.telegramId) return; if(myScore<=preRunBest) return; try { const res=await A.callAigramAPI('/note/aigram/ai/game/rank/score/list/by/session_id?session_id='+A.gameUuid,'GET'); const rows=Array.isArray(res)?res:(res&&res.data)||[]; const meId=String(A.telegramId); const beaten=rows.filter(r=>String(r.user_id)!==meId).map(r=>({id:String(r.user_id),score:Number(r.score)||0})).filter(r=>r.score<myScore&&r.score>preRunBest).sort((a,b)=>b.score-a.score)[0]; if(!beaten) return; A.postAigramAPI('/note/aigram/ai/game/record/play', { session_id:A.gameUuid, event:'score_beat', config_json:{ actions:[{ type:'notify', target_user_id:beaten.id, image:{ ref_url:'https://yinxinghuan.github.io/games/posters/quick-draw.png', prompt:CARTRIDGE.copy.leaderboardImagePrompt }, message:{ template:CARTRIDGE.copy.beatMessage.replace('{score}', String(Math.round(myScore))), variables:['sender_name'] } }] } }); } catch(e){} }
+async function trySendBeatNotify(myScore){ const A=window.Aigram; if(!A||!A.canRank||!A.telegramId) return; if(myScore<=preRunBest) return; try { const res=await A.callAigramAPI('/note/aigram/ai/game/rank/score/list/by/session_id?session_id='+A.gameUuid,'GET'); const rows=Array.isArray(res)?res:(res&&res.data)||[]; const meId=String(A.telegramId); const beaten=rows.filter(r=>String(r.user_id)!==meId).map(r=>({id:String(r.user_id),score:Number(r.score)||0})).filter(r=>r.score<myScore&&r.score>preRunBest).sort((a,b)=>b.score-a.score)[0]; if(!beaten) return; A.postAigramAPI('/note/aigram/ai/game/record/play', { session_id:A.gameUuid, event:'score_beat', config_json:{ actions:[{ type:'notify', target_user_id:beaten.id, image:{ ref_url:CARTRIDGE.posterUrl, prompt:CARTRIDGE.copy.leaderboardImagePrompt }, message:{ template:CARTRIDGE.copy.beatMessage.replace('{score}', String(Math.round(myScore))), variables:['sender_name'] } }] } }); } catch(e){} }
 refreshLB();
 </script>
 </body>

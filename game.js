@@ -22,6 +22,7 @@ const TUNE = CARTRIDGE.tuning;
 const COLORS = CARTRIDGE.colors;
 const COPY = CARTRIDGE.copy;
 const ACTION = CARTRIDGE.action || { prop: 'revolver', effect: 'muzzle', sound: 'shot' };
+const BEST_KEY = CARTRIDGE.bestKey || `${CARTRIDGE.id}.best`;
 const SET_MIN = TUNE.setMin, SET_MAX = TUNE.setMax;          // random tense wait before the signal
 const LEAD_IN = TUNE.leadIn;                                 // un-foulable grace at the very start of the wait
 const OPP_REACTION_START = TUNE.opponentReactionStart;       // first opponent is slow…
@@ -482,8 +483,8 @@ export function startGame({ canvas, hud }){
   let setT = 0, setDelay = 0, drawAtMs = 0, oppReaction = 0, resolveT = 0, playerWon = false, lastReaction = 0;
   let heartT = 0, winnerSign = -1;
 
-  function readBest(){ try { return Number(localStorage.getItem('qd.best')) || 0; } catch(e){ return 0; } }
-  function writeBest(v){ try { localStorage.setItem('qd.best', String(v)); } catch(e){} }
+  function readBest(){ try { return Number(localStorage.getItem(BEST_KEY)) || 0; } catch(e){ return 0; } }
+  function writeBest(v){ try { localStorage.setItem(BEST_KEY, String(v)); } catch(e){} }
 
   function oppReactionFor(i){ return clamp(OPP_REACTION_START - i * OPP_REACTION_STEP, OPP_REACTION_FLOOR, OPP_REACTION_START) + (Math.random()*2-1) * OPP_JITTER; }
 
