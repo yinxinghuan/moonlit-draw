@@ -22,6 +22,8 @@ const TUNE = CARTRIDGE.tuning;
 const COLORS = CARTRIDGE.colors;
 const COPY = CARTRIDGE.copy;
 const ACTION = CARTRIDGE.action || { prop: 'revolver', effect: 'muzzle', sound: 'shot' };
+const IS_BLADE = ACTION.prop === 'blade';
+const OVERHEAD_STRIKE = IS_BLADE && ACTION.strikeStyle === 'overhead';
 const BEST_KEY = CARTRIDGE.bestKey || `${CARTRIDGE.id}.best`;
 const BLADE_GRIP = {
   pitch: ACTION.gripPitch ?? 1.02,
@@ -227,9 +229,11 @@ export function startGame({ canvas, hud }){
     if (rig){
       gun = new THREE.Group();
       if (ACTION.prop === 'blade') {
-        gun.add(box(0.08, 0.08, 0.24, COLORS.townTrim, 0, -0.02, 0.02));       // handle
-        gun.add(box(0.06, 0.06, ACTION.reach || 0.98, COLORS.blade, 0, 0.02, 0.18 + (ACTION.reach || 0.98) / 2, { r: 0.25, e: COLORS.blade, ei: 0.18 }));
-        gun.position.set(0, -0.84 * HERO_SCALE, 0.04);
+        const reach = ACTION.reach || 0.98;
+        gun.add(box(0.1, 0.1, 0.34, COLORS.townTrim, 0, -0.02, 0.04));       // long two-hand grip
+        gun.add(box(0.28, 0.07, 0.09, COLORS.townTrim, 0, 0.02, 0.18));      // guard
+        gun.add(box(0.07, 0.07, reach, COLORS.blade, 0, 0.03, 0.24 + reach / 2, { r: 0.25, e: COLORS.blade, ei: 0.18 }));
+        gun.position.set(0, -0.78 * HERO_SCALE, 0.02);
         gun.rotation.set(BLADE_GRIP.pitch, BLADE_GRIP.yaw, BLADE_GRIP.roll);
       } else {
         gun.add(box(0.12, 0.12, 0.4, P.ironD, 0, 0, 0.16));         // barrel
@@ -240,11 +244,16 @@ export function startGame({ canvas, hud }){
       rig.armR.add(gun);
       const flashMat = new THREE.MeshBasicMaterial({ color: COLORS.muzzleCore, transparent: true, opacity: 0, fog: false });
       flash = ACTION.effect === 'slash'
-        ? new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.018, 6, 28, Math.PI * 1.25), flashMat)
+        ? new THREE.Mesh(new THREE.TorusGeometry(OVERHEAD_STRIKE ? 0.9 : 1.08, 0.052, 8, 52, Math.PI * (OVERHEAD_STRIKE ? 0.78 : 0.98)), flashMat)
         : new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), flashMat);
       if (ACTION.effect === 'slash') {
-        flash.position.set(0.02, 0.05, 0.68);
-        flash.rotation.set(Math.PI / 2, 0, -0.62);
+        if (OVERHEAD_STRIKE) {
+          flash.position.set(0, 0.08, 0.92);
+          flash.rotation.set(0.18, 0, -0.35);
+        } else {
+          flash.position.set(0.44, 0.12, 0.74);
+          flash.rotation.set(Math.PI / 2, 0, -0.98);
+        }
       } else {
         flash.position.set(0, 0, 0.42);
       }
@@ -258,67 +267,145 @@ export function startGame({ canvas, hud }){
 
   function setRestPose(f){
     if (!f.rig) return;
-    f.rig.armR.rotation.set(f.baseArmR + 0.05, 0, 0);   // hand hovers near the holster
-    f.rig.armL.rotation.set(0, 0, 0);
-    f.gun && (f.gun.visible = false);
+    if (OVERHEAD_STRIKE) {
+      f.rig.armR.rotation.set(f.baseArmR - 2.14, 0, -0.28);
+      f.rig.armL.rotation.set(f.baseArmR - 2.14, 0, 0.28);
+    } else {
+      f.rig.armR.rotation.set(f.baseArmR + 0.05, 0, 0);   // hand hovers near the holster
+      f.rig.armL.rotation.set(0, 0, 0);
+    }
+    f.gun && (f.gun.visible = OVERHEAD_STRIKE);
     f.root.rotation.z = 0;
+    f.model.rotation.z = 0;
     f.model.visible = true;
   }
+
+  function strikeHitPoint(f, fallback){
+    if (!OVERHEAD_STRIKE) return fallback;
+    const target = f === player ? opp : player;
+    if (!target) return fallback;
+    return new THREE.Vector3(target.root.position.x, 1.48, 0.34);
+  }
+
   // raise the shooting arm forward + muzzle flash (fire at the foe)
   function drawAndFire(f){
     if (!f.rig) return;
     f.gun && (f.gun.visible = true);
     if (ACTION.prop === 'blade') {
-      f.rig.armR.rotation.set(f.baseArmR - 1.08, 0, 0);
+      if (OVERHEAD_STRIKE) {
+        f.rig.armR.rotation.set(f.baseArmR - 1.16, 0, -0.18);
+        f.rig.armL.rotation.set(f.baseArmR - 1.16, 0, 0.18);
+        f.model.rotation.z = (f === player ? -1 : 1) * 0.08;
+      } else {
+        f.rig.armR.rotation.set(f.baseArmR - 1.08, 0, 0);
+      }
     } else {
       f.rig.armR.rotation.x = f.baseArmR - 1.5;
     }
-    if (f.flash){ f.flash.material.opacity = 1; f.flash.scale.setScalar(1); }
+    if (f.flash){ f.flash.material.opacity = 1; f.flash.scale.setScalar(ACTION.effect === 'slash' ? 1.12 : 1); }
     const wp = new THREE.Vector3();
     if (f.flash){
       f.flash.getWorldPosition(wp);
       const slash = ACTION.effect === 'slash';
-      if (slash) spawnSlashTrail(f);
-      burst(wp.x, wp.y, wp.z, {
-        count: slash ? 18 : 10,
+      const hitPoint = strikeHitPoint(f, wp);
+      if (slash) {
+        spawnSlashTrail(f);
+      }
+      burst(hitPoint.x, hitPoint.y, hitPoint.z, {
+        count: slash ? 8 : 10,
         color: COLORS.muzzle,
-        speed: slash ? 2.4 : 4,
-        up: slash ? 0.8 : 1.5,
-        size: slash ? 0.08 : 0.12,
-        life: slash ? 0.24 : 0.3,
-        emissive: slash ? 1.9 : 1.4,
+        speed: slash ? (OVERHEAD_STRIKE ? 0.9 : 1.25) : 4,
+        up: slash ? (OVERHEAD_STRIKE ? 0.05 : 0.35) : 1.5,
+        size: slash ? (OVERHEAD_STRIKE ? 0.06 : 0.045) : 0.12,
+        life: slash ? 0.16 : 0.3,
+        emissive: slash ? 1.55 : 1.4,
       });
     }
     sfxShot();
   }
 
   const slashFx = [];
+  function makeSlashRibbon(width, color, opacity){
+    const samples = 20;
+    const positions = [];
+    const indices = [];
+    const pts = [];
+    for (let i = 0; i < samples; i++){
+      const t = i / (samples - 1);
+      const x = OVERHEAD_STRIKE ? (-0.34 + Math.sin(t * Math.PI) * 0.64) : (-0.38 + t * 1.58);
+      const y = OVERHEAD_STRIKE ? (0.64 - t * 1.2) : (0.02 + Math.sin(t * Math.PI) * 0.44 - t * 0.08);
+      pts.push(new THREE.Vector3(x, y, 0));
+    }
+    for (let i = 0; i < samples; i++){
+      const prev = pts[Math.max(0, i - 1)];
+      const next = pts[Math.min(samples - 1, i + 1)];
+      const tangent = next.clone().sub(prev).normalize();
+      const normal = new THREE.Vector3(-tangent.y, tangent.x, 0).normalize();
+      const t = i / (samples - 1);
+      const taper = Math.pow(Math.sin(t * Math.PI), 0.62) * (1 - t * 0.18);
+      const w = width * taper;
+      const a = pts[i].clone().addScaledVector(normal, w);
+      const b = pts[i].clone().addScaledVector(normal, -w);
+      positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      if (i < samples - 1){
+        const j = i * 2;
+        indices.push(j, j + 1, j + 2, j + 1, j + 3, j + 2);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    const mat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      fog: false,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.userData.baseOpacity = opacity;
+    return mesh;
+  }
+  function makeSlashLine(yOffset, color, opacity){
+    const samples = 24;
+    const pts = [];
+    for (let i = 0; i < samples; i++){
+      const t = i / (samples - 1);
+      const x = OVERHEAD_STRIKE ? (-0.34 + Math.sin(t * Math.PI) * 0.64) : (-0.38 + t * 1.58);
+      const y = (OVERHEAD_STRIKE ? (0.64 - t * 1.2) : (0.02 + Math.sin(t * Math.PI) * 0.44 - t * 0.08)) + yOffset;
+      pts.push(new THREE.Vector3(x, y, 0.012));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const mat = new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      fog: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const line = new THREE.Line(geo, mat);
+    line.userData.baseOpacity = opacity;
+    return line;
+  }
   function spawnSlashTrail(f){
     const side = f === player ? 1 : -1;
     const group = new THREE.Group();
-    const mat = new THREE.MeshBasicMaterial({
-      color: COLORS.muzzleCore,
-      transparent: true,
-      opacity: 0.96,
-      fog: false,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    for (let i = 0; i < 3; i++){
-      const arc = new THREE.Mesh(
-        new THREE.TorusGeometry(0.54 + i * 0.16, 0.02 + i * 0.004, 8, 64, Math.PI * (0.72 + i * 0.1)),
-        mat.clone(),
-      );
-      arc.rotation.z = side > 0
-        ? -Math.PI * (0.18 + i * 0.07)
-        : Math.PI * (0.82 + i * 0.07);
-      arc.position.set(side * (0.1 + i * 0.05), i * 0.04, 0);
-      group.add(arc);
-    }
-    const x = f.root.position.x + side * 0.72;
-    group.position.set(x, 1.28, 0.2);
-    group.scale.setScalar(0.2);
-    group.userData = { life: 0.34, maxLife: 0.34, side };
+    group.add(makeSlashRibbon(OVERHEAD_STRIKE ? 0.3 : 0.2, COLORS.muzzle, OVERHEAD_STRIKE ? 0.78 : 0.62));
+    group.add(makeSlashRibbon(OVERHEAD_STRIKE ? 0.11 : 0.075, COLORS.muzzleCore, 1));
+    group.add(makeSlashLine(0, COLORS.muzzleCore, 1));
+    group.add(makeSlashLine(-0.055, COLORS.muzzle, OVERHEAD_STRIKE ? 0.82 : 0.64));
+    group.add(makeSlashLine(0.055, COLORS.muzzle, OVERHEAD_STRIKE ? 0.62 : 0.46));
+    const x = OVERHEAD_STRIKE ? side * 0.98 : -side * 0.05;
+    group.position.set(x, OVERHEAD_STRIKE ? 1.58 : 1.04, OVERHEAD_STRIKE ? 0.38 : 0.52);
+    group.scale.set((OVERHEAD_STRIKE ? 1.18 : 0.9) * side, OVERHEAD_STRIKE ? 1.18 : 0.9, 1);
+    group.quaternion.copy(camera.quaternion);
+    group.traverse((o) => { o.renderOrder = 20; });
+    group.userData = { life: OVERHEAD_STRIKE ? 0.28 : 0.34, maxLife: OVERHEAD_STRIKE ? 0.28 : 0.34, side, spin: OVERHEAD_STRIKE ? 0.08 * side : -0.16 * side };
     scene.add(group);
     slashFx.push(group);
   }
@@ -329,11 +416,14 @@ export function startGame({ canvas, hud }){
       g.userData.life -= dt;
       const t = clamp(g.userData.life / g.userData.maxLife, 0, 1);
       const k = 1 - t;
-      g.scale.setScalar(0.35 + k * 1.35);
-      g.position.x += g.userData.side * dt * 0.85;
-      g.rotation.z += g.userData.side * dt * 1.8;
-      g.children.forEach((arc, idx) => {
-        arc.material.opacity = t * (0.88 - idx * 0.16);
+      const sx = (0.9 + k * 0.2) * g.userData.side;
+      g.quaternion.copy(camera.quaternion);
+      g.scale.set(sx, 0.9 + k * 0.1, 1);
+      g.position.x += g.userData.side * dt * 0.36;
+      g.position.y += dt * 0.08;
+      g.rotateZ(g.userData.spin + g.userData.side * k * 0.42);
+      g.children.forEach((arc) => {
+        if (arc.material) arc.material.opacity = arc.userData.baseOpacity * Math.pow(t, 1.35);
       });
       if (g.userData.life <= 0){
         scene.remove(g);
@@ -607,7 +697,14 @@ export function startGame({ canvas, hud }){
       if (!f || f.fallen || !f.rig) continue;
       const b = Math.sin(idleClock * 2.2 + (f === opp ? 1.7 : 0)) * 0.5 + 0.5;
       f.model.position.y = (f._baseY || 0) + b * 0.015;
-      if (state === SET || state === ATTRACT){ f.rig.armR.rotation.x = f.baseArmR + 0.05 + b * 0.04; }
+      if (state === SET || state === ATTRACT){
+        if (OVERHEAD_STRIKE) {
+          f.rig.armR.rotation.set(f.baseArmR - 2.14 + b * 0.03, 0, -0.28);
+          f.rig.armL.rotation.set(f.baseArmR - 2.14 + b * 0.03, 0, 0.28);
+        } else {
+          f.rig.armR.rotation.x = f.baseArmR + 0.05 + b * 0.04;
+        }
+      }
     }
 
     if (state === SET){
@@ -629,9 +726,9 @@ export function startGame({ canvas, hud }){
       }
     }
 
+    updateCamera(dt);
     updateParticles(gdt);
     updateSlashFx(dt);
-    updateCamera(dt);
     composer.render();
   }
 

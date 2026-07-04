@@ -81,13 +81,16 @@ export const moonlitDojoCartridge = {
   world: {
     props: 'dojo',
     backdrop: 'dojo-gate',
-    duelSeparation: 1.24,
+    duelSeparation: 1.05,
   },
   action: {
     prop: 'blade',
     effect: 'slash',
     sound: 'blade',
-    reach: 1.1,
-    gripPitch: 1.02,
+    strikeStyle: 'overhead',
+    reach: 1.72,
+    gripPitch: 0.68,
+    gripYaw: 0,
+    gripRoll: 0,
   },
 };
