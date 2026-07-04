@@ -88,5 +88,6 @@ export const moonlitDojoCartridge = {
     effect: 'slash',
     sound: 'blade',
     reach: 1.1,
+    gripPitch: 1.02,
   },
 };

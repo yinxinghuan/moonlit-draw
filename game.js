@@ -23,6 +23,11 @@ const COLORS = CARTRIDGE.colors;
 const COPY = CARTRIDGE.copy;
 const ACTION = CARTRIDGE.action || { prop: 'revolver', effect: 'muzzle', sound: 'shot' };
 const BEST_KEY = CARTRIDGE.bestKey || `${CARTRIDGE.id}.best`;
+const BLADE_GRIP = {
+  pitch: ACTION.gripPitch ?? 1.02,
+  yaw: ACTION.gripYaw ?? 0,
+  roll: ACTION.gripRoll ?? 0,
+};
 const SET_MIN = TUNE.setMin, SET_MAX = TUNE.setMax;          // random tense wait before the signal
 const LEAD_IN = TUNE.leadIn;                                 // un-foulable grace at the very start of the wait
 const OPP_REACTION_START = TUNE.opponentReactionStart;       // first opponent is slow…
@@ -225,6 +230,7 @@ export function startGame({ canvas, hud }){
         gun.add(box(0.08, 0.08, 0.24, COLORS.townTrim, 0, -0.02, 0.02));       // handle
         gun.add(box(0.06, 0.06, ACTION.reach || 0.98, COLORS.blade, 0, 0.02, 0.18 + (ACTION.reach || 0.98) / 2, { r: 0.25, e: COLORS.blade, ei: 0.18 }));
         gun.position.set(0, -0.84 * HERO_SCALE, 0.04);
+        gun.rotation.set(BLADE_GRIP.pitch, BLADE_GRIP.yaw, BLADE_GRIP.roll);
       } else {
         gun.add(box(0.12, 0.12, 0.4, P.ironD, 0, 0, 0.16));         // barrel
         gun.add(box(0.13, 0.26, 0.13, 0x6b4a2e, 0, -0.14, -0.04));  // grip
@@ -262,7 +268,11 @@ export function startGame({ canvas, hud }){
   function drawAndFire(f){
     if (!f.rig) return;
     f.gun && (f.gun.visible = true);
-    f.rig.armR.rotation.x = f.baseArmR - (ACTION.prop === 'blade' ? 1.18 : 1.5);
+    if (ACTION.prop === 'blade') {
+      f.rig.armR.rotation.set(f.baseArmR - 1.08, 0, 0);
+    } else {
+      f.rig.armR.rotation.x = f.baseArmR - 1.5;
+    }
     if (f.flash){ f.flash.material.opacity = 1; f.flash.scale.setScalar(1); }
     const wp = new THREE.Vector3();
     if (f.flash){
