@@ -67,6 +67,14 @@
   #guide .g-label { font-weight:700; font-size:15px; letter-spacing:.04em; color:#fff; text-shadow:0 2px 8px rgba(0,0,0,.6); text-transform:uppercase; text-align:center; max-width:80vw; }
   @keyframes g-tap { 0%,100%{transform:translateY(-4px) scale(1);} 46%,60%{transform:translateY(3px) scale(.92);} }
 
+  /* Player identity beacon — projected from the 3D fighter's head position. */
+  #playerId { left:0; top:0; display:flex; flex-direction:column; align-items:center; gap:3px; opacity:0; transform:translate(-50%,-100%); transition:opacity .2s ease; }
+  #playerId.show { opacity:1; }
+  #playerId .you-tag { min-width:48px; padding:5px 10px 4px; border:1px solid rgba(255,255,255,.72); border-radius:999px; background:rgba(7,16,29,.86); color:#fff; font-family:var(--font); font-weight:700; font-size:13px; line-height:1; letter-spacing:.14em; text-align:center; text-shadow:0 1px 3px rgba(0,0,0,.7); box-shadow:0 5px 16px rgba(0,0,0,.35); }
+  #playerId svg { width:18px; height:12px; overflow:visible; filter:drop-shadow(0 2px 3px rgba(0,0,0,.6)); animation:qd-player-beacon .9s ease-in-out infinite; }
+  #playerId svg path { fill:var(--gold); stroke:rgba(7,16,29,.85); stroke-width:1.4; stroke-linejoin:round; }
+  @keyframes qd-player-beacon { 0%,100%{transform:translateY(-1px);} 50%{transform:translateY(3px);} }
+
   /* Game over card */
   #over { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(12,6,14,.62); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); z-index:30; padding:24px; pointer-events:auto; }
   #over.show { display:flex; animation:qd-fade .25s ease; }
@@ -134,7 +142,11 @@
   #lbClose { margin-top:16px; align-self:stretch; min-height:46px; border:none; border-radius:999px; background:rgba(255,255,255,.08); border:1px solid rgba(255,200,120,.24); color:var(--ink); font-family:var(--display); font-size:17px; letter-spacing:.03em; cursor:pointer; -webkit-tap-highlight-color:transparent; text-transform:uppercase; transition:transform .12s ease, background .2s ease; }
   #lbClose:active { transform:translateY(2px); background:rgba(255,255,255,.14); }
 
-  @media (prefers-reduced-motion: reduce) { #guide .g-finger { animation:none; transform:translateY(0); } #over.show,#over .card,#lbFull.show,#lbFull .lcard,#draw.show,#status.bump { animation:none; } }
+  @media (max-height:650px) {
+    #wordmark { top:max(24px,calc(env(safe-area-inset-top) + 12px)); }
+    #wordmark .sub { margin-top:8px; font-size:11px; }
+  }
+  @media (prefers-reduced-motion: reduce) { #guide .g-finger,#playerId svg { animation:none; transform:translateY(0); } #over.show,#over .card,#lbFull.show,#lbFull .lcard,#draw.show,#status.bump { animation:none; } }
 </style>
 </head>
 <body>
@@ -145,6 +157,7 @@
   <div id="opp" class="hud">VS<b id="oppN">—</b></div>
   <div id="draw" class="hud">STRIKE!</div>
   <div id="status" class="hud"></div>
+  <div id="playerId" class="hud" aria-hidden="true"><span class="you-tag">YOU</span><svg viewBox="0 0 18 12"><path d="M2 2 L9 10 L16 2 Z"/></svg></div>
   <div id="guide" class="hud">
     <div class="g-finger"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11.24V7.5C9 6.12 10.12 5 11.5 5S14 6.12 14 7.5v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zm9.84 4.63l-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6c0-.83-.67-1.5-1.5-1.5S10 6.67 10 7.5v10.74l-3.43-.72c-.08-.01-.15-.03-.24-.03-.31 0-.59.13-.79.33l-.79.8 4.94 4.94c.27.27.65.44 1.06.44h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27c.01-.07.02-.14.02-.2 0-.62-.38-1.16-.92-1.38z"/></svg></div>
     <div class="g-label">Tap the instant the moon flashes</div>
@@ -169,7 +182,7 @@
 import { startGame } from './game.js';
 import { CARTRIDGE } from './cartridge/index.js';
 const $ = (s) => document.querySelector(s);
-const canvas = $('#c'), wordmarkEl = $('#wordmark'), winsEl = $('#wins'), oppEl = $('#opp'), drawEl = $('#draw'), statusEl = $('#status'), guideEl = $('#guide'), overEl = $('#over');
+const canvas = $('#c'), wordmarkEl = $('#wordmark'), winsEl = $('#wins'), oppEl = $('#opp'), drawEl = $('#draw'), statusEl = $('#status'), guideEl = $('#guide'), playerIdEl = $('#playerId'), overEl = $('#over');
 let started = false, bumpT = null;
 
 function applyCartridge(){
@@ -190,6 +203,7 @@ function applyCartridge(){
   $('#wordmark .b').textContent = CARTRIDGE.title;
   $('#wordmark .sub').textContent = CARTRIDGE.subtitle;
   drawEl.textContent = CARTRIDGE.copy.draw;
+  $('#playerId .you-tag').textContent = CARTRIDGE.copy.playerLabel || 'YOU';
   $('#guide .g-label').textContent = CARTRIDGE.copy.guide;
   oppEl.childNodes[0].nodeValue = CARTRIDGE.copy.versus;
   $('#lbFull h2').textContent = CARTRIDGE.copy.leaderboardTitle;
@@ -233,6 +247,12 @@ const hud = {
     setTimeout(refreshLB, 1200);
   },
   setReady(on){ guideEl.classList.toggle('show', on !== false && !started); },
+  setPlayerAnchor(anchor){
+    if (!anchor){ playerIdEl.classList.remove('show'); return; }
+    playerIdEl.style.left = anchor.x.toFixed(1) + 'px';
+    playerIdEl.style.top = (anchor.y - 8).toFixed(1) + 'px';
+    playerIdEl.classList.add('show');
+  },
 };
 let bestMs = 0;
 

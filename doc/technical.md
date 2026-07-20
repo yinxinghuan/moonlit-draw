@@ -1,41 +1,31 @@
-# Technical
+# 《Moonlit Draw》技术文档
 
 ## 1. 技术栈
 
-- 游戏：Quick Draw
-- 类型：action
-- 简述：AlterU action · 低多边形西部拔枪决斗。两个枪手对峙，屏幕闪 DRAW! 那一刻最快点屏=秒杀对手，抢跑=FOUL 直接输。连过一排越来越快的枪手（酒鬼→通缉犯→镇长），反应越快爬越深，被抢先=入土。复用全角色库当各路枪手。连胜上榜 + 被超越通知，单点即玩。
-- 框架 / 语言 / 构建：TypeScript, Vite, Three.js
-- 渲染方式：Canvas/WebGL
-- 依赖摘录：three@0.160.0, vite@^5.1.0
-- 平台元信息：meta.title=Quick Draw；cover_url=/poster.png；category=action；uuid=43c76846-39c9-45b7-ad08-76c817b375a3
+- JavaScript ES Modules、Three.js `0.160.0`、WebGL、Web Audio API。
+- Vite `5.x` 构建，`base: './'`，产物输出至 `dist/`。
+- HTML/CSS HUD 覆盖在 Three.js Canvas 之上，平台能力通过 `aigram-bridge.js` 接入。
 
 ## 2. 目录结构
 
-- `index.html`：Vite/浏览器入口，挂载根节点和基础 meta。
-- `vite.config.js`：配置构建、插件和相对路径 base。
-- `package.json`：定义 npm 脚本、依赖和工程名称。
-- `meta.json`：平台发布元信息，包含标题和封面。
-
-关键源码模块：
-
-- `src/`：源码目录。
+- `index.html`：HUD、身份标签、结算页、榜单、输入绑定与平台 API。
+- `game.js`：决斗状态机、相机、3D 场景、持刀动作、刀光粒子和程序化音频。
+- `cartridge/moonlit-dojo.js`：月夜道场文案、角色池、数值、颜色与刀法配置。
+- `builders/`、`lib/prims.js`：低多边形角色与几何体构建。
+- `public/`：平台桥接和封面；`_qa/ui/`：关键状态的视觉复验证据。
 
 ## 3. 核心模块
 
-- 状态管理与主循环：通过模块级状态、对象引用和 `requestAnimationFrame` 推进游戏帧。
-- 渲染方式：Canvas/WebGL，样式由 CSS/Less 和组件结构共同完成。
-- 碰撞 / 更新：源码包含命中、距离、边界或重叠判断，结果会影响得分、生命或阶段。
-- 音频：包含程序化音频或音频文件播放，按交互事件触发。
-- 多语言：包含 i18n / locale 检测或 `t()` 文案函数。
-- 存储：使用 localStorage、useGameSave 或 persist 保存分数、收藏、墙数据或本地状态。
-- Aigram 运行时：接入 `@shared/runtime` 或平台桥接能力，用于用户、资料页、分享、通知或平台 API。
-- 排行榜：源码包含分数提交、排名或榜单展示逻辑。
+- 状态机：`ATTRACT → SET → DRAW → RESOLVE → DEAD`；首次点击只从展示态进入等待态。
+- 开场识别：`introClock` 驱动玩家近景到双人全景；玩家头部世界坐标逐帧投影为 HUD 坐标，`markerHold` 控制标签消失时间；减少动态偏好下直接使用全景但保留标签。
+- 响应式相机：根据水平视场和 `FRAME_HALF_W` 计算 `camZ`，窄屏仍同时容纳双方。
+- 排行榜与存储：最佳反应写入 `moonlit-draw.best`；平台可用时提交胜场并读取排行榜、发送超越通知。
+- 音频：首次交互解锁 AudioContext，振荡器与噪声生成环境、提示、刀声和结果音效。
 
 ## 4. 扩展点
 
-- 改玩法参数：优先查找 `src/` 内大写常量、hooks、主组件顶部配置或关卡数组。
-- 换素材：替换 `public/`、`src/img/` 或源码 import 的图片/音频文件，并保持相对路径。
-- 调视觉：修改主样式文件中的颜色、间距、动画时长、网格尺寸和响应式规则。
-- 改文案：修改 i18n 字典、组件内标题按钮文案，保持 zh/en 同步。
-- 加平台能力：在已有 `@shared/runtime`、useGameSave、排行榜、墙或通知调用附近扩展，避免另起一套存储。
+- 改反应难度：修改 `cartridge/moonlit-dojo.js` 的 `tuning`。
+- 改开场镜头：修改 `game.js` 的 `snapToPlayerIntro()`、`updateCamera()` 和 `markerHold`。
+- 改身份标签样式/文案：修改 `index.html` 的 `#playerId` 与 `cartridge/moonlit-dojo.js` 的 `copy.playerLabel`。
+- 换角色或场景：修改 `builders/` 与 cartridge 的 `fighters`、`world`、`colors`。
+- 加平台能力：在 `index.html` 现有 `window.Aigram` 排行榜流程附近扩展。

@@ -7,6 +7,7 @@ export const moonlitDojoCartridge = {
   themeClass: 'theme-moonlit-dojo',
   copy: {
     guide: 'Tap the instant the moon flashes',
+    playerLabel: 'YOU',
     draw: 'STRIKE!',
     wait: 'HOLD STILL...',
     foul: 'BROKE FORM!',

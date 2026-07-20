@@ -60,6 +60,7 @@ export function startGame({ canvas, hud }){
   const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 120);
   const CAM_LOOK = new THREE.Vector3(0, 1.15, 0);
   let camPunch = 0, camZ = 12, camY = 3.4;
+  const REDUCED_MOTION = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   // Pull the camera back far enough that BOTH fighters fit horizontally — on a narrow
   // portrait phone the horizontal FOV is small, so this distance grows. Centred (x=0).
   function frameCamera(){
@@ -78,6 +79,14 @@ export function startGame({ canvas, hud }){
   // them — then ease back to framing for the next duel. Smoothed both ways so it never snaps.
   const _smooth = u => { u = clamp(u, 0, 1); return u * u * (3 - 2 * u); };
   const _camPos = new THREE.Vector3(), _camLook = new THREE.Vector3(), _lookCur = new THREE.Vector3(0, 1.15, 0);
+  function snapToPlayerIntro(){
+    if (REDUCED_MOTION) return;
+    const closeZ = Math.max(5.6, camZ * 0.62);
+    const closeY = Math.max(2.2, closeZ * 0.21 + 0.45);
+    camera.position.set(PLAYER_X, closeY, closeZ);
+    _lookCur.set(PLAYER_X, 1.25, 0);
+    camera.lookAt(_lookCur);
+  }
   function updateCamera(dt){
     if (state === RESOLVE){
       // ORBIT around the duel centre, always looking AT it — both fighters + the loser
@@ -88,6 +97,14 @@ export function startGame({ canvas, hud }){
       const R = lerp(camZ, camZ * 0.85, k);
       _camPos.set(Math.sin(th) * R, lerp(camY, camY + 0.5, k), Math.cos(th) * R);
       _camLook.set(0, 1.02, 0);
+    } else if (state === ATTRACT) {
+      // Introduce the player's side first, then reveal the full standoff. The fixed
+      // identity marker below makes the same information available without motion.
+      const k = REDUCED_MOTION ? 1 : _smooth((introClock - 0.28) / 1.35);
+      const closeZ = Math.max(5.6, camZ * 0.62);
+      const closeY = Math.max(2.2, closeZ * 0.21 + 0.45);
+      _camPos.set(lerp(PLAYER_X, 0, k), lerp(closeY, camY, k), lerp(closeZ, camZ, k));
+      _camLook.set(lerp(PLAYER_X, CAM_LOOK.x, k), lerp(1.25, CAM_LOOK.y, k), 0);
     } else {
       const z = 1 - camPunch * 0.1;
       _camPos.set(0, camY, camZ * z);
@@ -260,7 +277,7 @@ export function startGame({ canvas, hud }){
       gun.add(flash);
     }
     scene.add(root);
-    return { root, model, rig, gun, flash, key: charKey, baseArmR: rig ? rig.armR.rotation.x : 0, _baseY: model.position.y, fallen: false, fallT: 0 };
+    return { root, model, rig, gun, flash, key: charKey, baseArmR: rig ? rig.armR.rotation.x : 0, _baseY: model.position.y, markerY: model.position.y + bb.max.y + 0.3, fallen: false, fallT: 0 };
   }
   let player = buildFighter(playerRoster.includes('cowboy') ? 'cowboy' : pick(playerRoster), -1);
   let opp = null;
@@ -581,7 +598,21 @@ export function startGame({ canvas, hud }){
   let state = ATTRACT;
   let duelIdx = 0, wins = 0, best = readBest();
   let setT = 0, setDelay = 0, drawAtMs = 0, oppReaction = 0, resolveT = 0, playerWon = false, lastReaction = 0;
-  let heartT = 0, winnerSign = -1;
+  let heartT = 0, winnerSign = -1, introClock = 0, markerHold = 0;
+  const _markerPos = new THREE.Vector3();
+
+  function updatePlayerMarker(){
+    const visible = state === ATTRACT || (state === SET && markerHold > 0);
+    if (!visible || !player || player.fallen || !hud.setPlayerAnchor){
+      hud.setPlayerAnchor && hud.setPlayerAnchor(null);
+      return;
+    }
+    _markerPos.set(player.root.position.x, player.markerY, player.root.position.z).project(camera);
+    const x = (_markerPos.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-_markerPos.y * 0.5 + 0.5) * window.innerHeight;
+    const inFrame = _markerPos.z > -1 && _markerPos.z < 1 && x > -40 && x < window.innerWidth + 40 && y > 0 && y < window.innerHeight;
+    hud.setPlayerAnchor(inFrame ? { x, y } : null);
+  }
 
   function readBest(){ try { return Number(localStorage.getItem(BEST_KEY)) || 0; } catch(e){ return 0; } }
   function writeBest(v){ try { localStorage.setItem(BEST_KEY, String(v)); } catch(e){} }
@@ -600,6 +631,7 @@ export function startGame({ canvas, hud }){
     setRestPose(player);
     oppReaction = oppReactionFor(duelIdx);
     state = SET; setT = 0; heartT = 0.35;
+    markerHold = duelIdx === 0 ? 1.1 : 0;
     setDelay = SET_MIN + Math.random() * (SET_MAX - SET_MIN);
     startTense(); tenseUp(true);
     hud.setWins(wins);
@@ -610,6 +642,7 @@ export function startGame({ canvas, hud }){
 
   function fireDraw(){
     state = DRAW; drawAtMs = performance.now();
+    markerHold = 0;
     tenseUp(false);
     hud.setStatus('', 'draw'); hud.flashDraw(true);
     sfxDrawCall();
@@ -618,6 +651,7 @@ export function startGame({ canvas, hud }){
 
   function resolve(won, foul){
     state = RESOLVE; resolveT = 0; playerWon = won;
+    markerHold = 0;
     winnerSign = won ? -1 : 1;                  // who's left standing (cinematic camera focuses them)
     hud.flashDraw(false);
     tenseUp(false);
@@ -650,7 +684,8 @@ export function startGame({ canvas, hud }){
     // ATTRACT: a populated standoff (both gunslingers ready) that just idles — NO draw
     // countdown — until the player's first tap. Survives the feed's off-screen preload.
     newOpponent();
-    state = ATTRACT;
+    state = ATTRACT; introClock = 0; markerHold = 0;
+    snapToPlayerIntro();
     hud.setDead(null); hud.setWins(0); hud.setBest(best);
     hud.setReady(true);
   }
@@ -685,6 +720,8 @@ export function startGame({ canvas, hud }){
     const gdt = dt * timeScale;
     camPunch = lerp(camPunch, 0, 6 * dt);
     idleClock += dt;
+    if (state === ATTRACT) introClock += dt;
+    if (state === SET && markerHold > 0) markerHold = Math.max(0, markerHold - dt);
 
     sky.position.copy(camera.position);
     // dust drift
@@ -727,6 +764,7 @@ export function startGame({ canvas, hud }){
     }
 
     updateCamera(dt);
+    updatePlayerMarker();
     updateParticles(gdt);
     updateSlashFx(dt);
     composer.render();
